@@ -12,7 +12,7 @@ pub struct Memory {
 
 impl Default for Memory{
     fn default() -> Self {
-        Memory { data: Vec::with_capacity( usize::try_from(MAX_MEM).unwrap() ) }
+        Memory { data: vec![0; MAX_MEM as usize] }
     }
 }
 

@@ -5,10 +5,13 @@
 
 type Byte = u8;
 type Word = u16;
+type Bit = bool;
 
 use crate::mem;
+use crate::stack;
 
 const NEG_MASK: Byte = 0b10000000;
+const BOOL_MASK: Byte = 0b00000001;
 
 pub const INS_ADC_IM:  u8 = 0x69;
 pub const INS_BVS_REL: u8 = 0x70;
@@ -55,6 +58,7 @@ pub const INS_LDA_ABY: u8 = 0xB9;
 pub const INS_TSX_IMP: u8 = 0xBA;
 
 
+
 pub struct CPU {
     pub pc: Word, // Program Counter
     pub sp: Byte, // Stack Pointer
@@ -63,18 +67,18 @@ pub struct CPU {
     pub x: Byte, // X Register
     pub y: Byte, // Y Register
 
-    pub c: Byte, // Carry               Status Flag
-    pub z: Byte, // Zero                Status Flag
-    pub i: Byte, // Interrupt Distable  Status Flag
-    pub d: Byte, // Decimal             Status Flag
-    pub b: Byte, // B                   Flag
-    pub v: Byte, // Overflow            Status Flag
-    pub n: Byte, // Negative            Status Flag
+    pub c: Bit, // Carry               Status Flag
+    pub z: Bit, // Zero                Status Flag
+    pub i: Bit, // Interrupt Distable  Status Flag
+    pub d: Bit, // Decimal             Status Flag
+    pub b: Bit, // B                   Flag
+    pub v: Bit, // Overflow            Status Flag
+    pub n: Bit, // Negative            Status Flag
 }
 
 impl Default for CPU {
     fn default() -> Self {
-        CPU { pc: 0, sp: 0, a: 0, x: 0, y: 0, c: 0, z: 0, i: 0, d: 0, b: 0, v: 0, n: 0 }
+        CPU { pc: 0, sp: 0, a: 0, x: 0, y: 0, c: false, z: false, i: false, d: false, b: false, v: false, n: false }
     }
 }
 
@@ -83,13 +87,13 @@ impl CPU {
         self.pc = 0xFFFC;
         self.sp = 0x10;
         
-        self.c = 0;
-        self.z = 0;
-        self.i = 0;
-        self.d = 0;
-        self.b = 0;
-        self.v = 0;
-        self.n = 0;
+        self.c = false;
+        self.z = false;
+        self.i = false;
+        self.d = false;
+        self.b = false;
+        self.v = false;
+        self.n = false;
 
         self.a = 0;
         self.x = 0;
@@ -97,49 +101,63 @@ impl CPU {
         mem.restart();
     }
 
-    pub fn fetch(&mut self, cycles: &mut u32, mem: &mut mem::Memory) -> Byte{
+    pub fn fetch_byte(&mut self, cycles: &mut u32, mem: &mut mem::Memory) -> Byte{
         let data: Byte = mem.get_byte(self.pc as u32);
         self.pc += 1;
         *cycles -= 1;
         data
-    }
+    }  
 
     pub fn execute(&mut self, mut cycles: u32, mem: &mut mem::Memory){
         while cycles > 0 {
-            let instruction = self.fetch(&mut cycles, mem);
+            let instruction = self.fetch_byte(&mut cycles, mem);
             CPU::handle_instruction(self, instruction, &mut cycles, mem);
             
         }
     }
 
-    fn handle_instruction(&mut self, instruction: u8, cycles: &mut u32, mem: &mut mem::Memory){
+
+    fn handle_instruction(&mut self, instruction: Byte, cycles: &mut u32, mem: &mut mem::Memory){
+        //aaabbbcc
         match instruction {
-
-            // 0x69
-            INS_ADC_IM => {
-                let value: Byte = self.fetch(cycles, mem);
-                
-                let result: Word = (self.a + value + self.c).into();
-                self.c = if result > 0xFF {1} else {0};
-                self.z = if result == 0 {1} else {0};
-                
-            },
-
-
-            INS_LDA_IM => {
-                
-                let value: Byte = self.fetch(cycles, mem);
-                
-                self.a = value;
-                self.z = if self.a == 0  {1} else { 0 };
-                self.n = if (self.a & NEG_MASK) > 0 {1} else {0};
-                
-            },
-
+            // Handle the non-pattern cases
             _ => {
-                println!("Instruction {} not handled!", instruction);
+                
             }
         }
     }
-}
 
+    /**
+     * 1. fetch the opcode from PC ($A1) and increment PC
+     * 2. fetch a byte from PC (nn) and increment PC;
+     * 3. read from (nn), separately add x to nn;
+     * 4. read to A from (nn + x) MOD 256.
+     * https://www.reddit.com/r/EmuDev/comments/pl4ygy/6502_cycle_counting/
+     */ 
+    fn handle_opcode(&mut self, instruction: Byte, cycles: &mut &u32, mem: &mut mem::Memory){
+        let aaa: u8 = (instruction >> 5) & 0b00000111;
+        let _bbb: u8 = (instruction >> 2) & 0b00000111;
+        let cc: u8 = instruction & 0b00000011;
+        
+        match (aaa, cc) {
+            (000,01) => {
+                // ORA
+            }
+
+            _ => {}
+        }
+        
+        
+
+    }
+    fn handle_addressing_mode(&mut self, addressing_mode: Byte, cycles: &mut u32, mem: &mut mem::Memory){
+
+    }
+
+    fn ora_instruction(&mut self, val: Byte, cycles: &mut u32, mem: &mut mem::Memory){
+        self.a = self.a | val;
+        self.z = self.a == 0;
+        self.n = (self.a >> 7) & BOOL_MASK == 1;
+        *cycles-=1;
+    }
+}

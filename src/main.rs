@@ -2,8 +2,7 @@
 
 pub mod cpu;
 pub mod mem;
-
-
+pub mod stack;
 
 fn main() {
     let mut cpu: cpu::CPU = cpu::CPU {..Default::default()};

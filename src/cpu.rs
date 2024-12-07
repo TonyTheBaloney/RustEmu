@@ -8,7 +8,6 @@ type Word = u16;
 type Bit = bool;
 
 use crate::mem;
-use crate::stack;
 
 const NEG_MASK: Byte = 0b10000000;
 const BOOL_MASK: Byte = 0b00000001;
@@ -117,7 +116,7 @@ impl CPU {
     }
 
 
-    fn handle_instruction(&mut self, instruction: Byte, cycles: &mut u32, mem: &mut mem::Memory){
+    fn handle_instruction(&mut self, instruction: Byte, _cycles: &mut u32, _mem: &mut mem::Memory){
         //aaabbbcc
         match instruction {
             // Handle the non-pattern cases
@@ -134,14 +133,17 @@ impl CPU {
      * 4. read to A from (nn + x) MOD 256.
      * https://www.reddit.com/r/EmuDev/comments/pl4ygy/6502_cycle_counting/
      */ 
-    fn handle_opcode(&mut self, instruction: Byte, cycles: &mut &u32, mem: &mut mem::Memory){
+    fn handle_opcode(&mut self, instruction: Byte, cycles: &mut u32, mem: &mut mem::Memory){
         let aaa: u8 = (instruction >> 5) & 0b00000111;
-        let _bbb: u8 = (instruction >> 2) & 0b00000111;
+        let bbb: u8 = (instruction >> 2) & 0b00000111;
         let cc: u8 = instruction & 0b00000011;
         
+        let value: Word = self.handle_addressing_mode(bbb, cycles, mem);
+
         match (aaa, cc) {
             (000,01) => {
                 // ORA
+                self.ora_instruction(value as Byte, cycles);
             }
 
             _ => {}
@@ -150,14 +152,42 @@ impl CPU {
         
 
     }
-    fn handle_addressing_mode(&mut self, addressing_mode: Byte, cycles: &mut u32, mem: &mut mem::Memory){
-
+    fn handle_addressing_mode(&mut self, _addressing_mode: Byte, _cycles: &mut u32, _mem: &mut mem::Memory) -> Word{
+        0
     }
 
-    fn ora_instruction(&mut self, val: Byte, cycles: &mut u32, mem: &mut mem::Memory){
+    // Address modes
+
+    fn zp_index_x(&mut self, address: u32, mem: &mut mem::Memory) -> Byte{
+        let value = mem.get_byte((address + (self.x as u32)) % 256);
+        value
+    }
+
+    fn zp_index_y(&mut self, address: u32, mem: &mut mem::Memory) -> Byte{
+        let value = mem.get_byte((address + (self.y as u32)) % 256);
+        value
+    }
+
+    fn abs_index_x(&mut self, address: u32, mem: &mut mem::Memory) -> Byte{
+        let value = mem.get_byte(address + (self.y as u32));
+        value
+    }
+
+    fn abs_index_y(&mut self, address: u32, mem: &mut mem::Memory) -> Byte{
+        let value = mem.get_byte(address + (self.y as u32));
+        value
+    }
+
+    fn indirect_index_x(&mut self, address: u32, mem: &mut mem::Memory) -> Byte{
+        let value = mem.get_byte((mem.get_byte((address + (self.x as u32)) % 256) as u32) + (mem.get_byte((address + (self.x as u32) + 1) % 256) as u32) * 256);
+        value
+    }
+
+    fn ora_instruction(&mut self, val: Byte, cycles: &mut u32){
         self.a = self.a | val;
         self.z = self.a == 0;
         self.n = (self.a >> 7) & BOOL_MASK == 1;
         *cycles-=1;
     }
+
 }
